@@ -7,6 +7,8 @@ scalaVersion := "2.13.2"
 scalacOptions ++= Seq("-feature", "-deprecation", "-unchecked", "-Xlint", "-Ymacro-annotations")
 
 enablePlugins(PackPlugin)
+packGenerateWindowsBatFile := false
+packMain := PackMain.paths
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
