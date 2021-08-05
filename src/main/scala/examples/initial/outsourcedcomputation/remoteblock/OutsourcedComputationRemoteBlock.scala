@@ -1,12 +1,13 @@
-package examples.initial.outsourcedcomputation
+package examples.initial.outsourcedcomputation.remoteblock
 
 import loci._
+import loci.communicator.tcp._
 import loci.transmitter.rescala._
 import loci.serializer.upickle._
-import loci.communicator.tcp._
 import rescala.default._
 
 import scala.concurrent.Await
+import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
 @multitier object OutsourcedComputationRemoteBlock {
@@ -27,7 +28,7 @@ import scala.concurrent.duration.DurationInt
     value + 1
   }
 
-  val outputNumber = on[Client] {
+  val outputNumber: Event[Future[Int]] on Client = on[Client] { implicit! =>
     inputNumber.map {
       case value if value >= 10 =>
         on[PowerfulServer].run.capture(value) { implicit! =>
