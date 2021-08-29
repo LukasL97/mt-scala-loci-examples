@@ -9,35 +9,44 @@ import rescala.default._
 import scala.concurrent.Await
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
+import scala.util.Random
 
 @multitier object OutsourcedComputationRemoteBlock {
 
-  @peer type Client <: { type Tie <: Single[PowerfulServer] with Single[WeakServer] }
-  @peer type PowerfulServer <: { type Tie <: Single[Client] }
-  @peer type WeakServer <: { type Tie <: Single[Client] }
+  @peer type Server
 
-  val inputNumber: Evt[Int] on Client = on[Client] { Evt[Int] }
+  @peer type Client <: Server { type Tie <: Single[PowerfulServer] with Single[WeakServer] }
+  @peer type PowerfulServer <: Server { type Tie <: Single[Client] }
+  @peer type WeakServer <: Server { type Tie <: Single[Client] }
 
-  def powerfulCompute(value: Int): Int on PowerfulServer = on[PowerfulServer] {
-    println("Doing some powerful GPU computation stuff but really quick...")
-    value + 1
-  }
+  val inputNumber: Evt[Int] on Client = on[Client] { implicit! => Evt[Int] }
 
-  def weakCompute(value: Int): Int on WeakServer = on[WeakServer] {
-    println("Compute on shitty slow CPU...")
-    value + 1
+  def compute(value: Int):  Int on Server = (
+    on[Server] { implicit! =>
+      throw new NotImplementedError
+    }
+  ) and (
+    on[PowerfulServer] { implicit! =>
+      println("Doing some powerful GPU computation stuff but really quick...")
+      value + 1
+    }
+  ) and (
+    on[WeakServer] { implicit! =>
+      println("Compute on shitty slow CPU...")
+      value + 1
+    }
+  )
+
+  def selectServer: Local[Remote[Server]] on Client = on[Client] { implicit! =>
+    val servers = remote[Server].connected.now
+    servers((new Random).nextInt(servers.size))
   }
 
   val outputNumber: Event[Future[Int]] on Client = on[Client] { implicit! =>
-    inputNumber.map {
-      case value if value >= 10 =>
-        on[PowerfulServer].run.capture(value) { implicit! =>
-          powerfulCompute(value)
-        }.asLocal
-      case value =>
-        on[WeakServer].run.capture(value) { implicit! =>
-          weakCompute(value)
-        }.asLocal
+    inputNumber.map { value =>
+      on(selectServer).run.capture(value) { implicit! =>
+        compute(value)
+      }.asLocal
     }
   }
 
