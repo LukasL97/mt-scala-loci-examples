@@ -23,3 +23,5 @@ target/
 *.toc
 
 .bsp
+
+.code/
