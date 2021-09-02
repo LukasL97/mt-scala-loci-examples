@@ -10,9 +10,13 @@ enablePlugins(PackPlugin)
 packGenerateWindowsBatFile := false
 packMain := PackMain.paths
 
+commands += Command.single("compileOnly") { (state, path) =>
+  s"""set sources in Compile := (sources in Compile).value.filter(_.getPath == "$path")""" :: "compile" :: state
+}
+
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
-val localLociVersion = "0.4.0-70-gd9f5c1e"
+val localLociVersion = "0.4.0-72-g7a759ce"
 
 libraryDependencies ++= Seq(
   "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,
