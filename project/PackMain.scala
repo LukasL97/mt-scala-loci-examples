@@ -14,6 +14,9 @@ object PackMain {
     "dynamic-weak-server-remoteblock" -> "examples.dynamic.outsourcedcomputation.remoteblock.WeakServer",
     "dynamic-client-remotecall" -> "examples.dynamic.outsourcedcomputation.remotecall.Client",
     "dynamic-powerful-server-remotecall" -> "examples.dynamic.outsourcedcomputation.remotecall.PowerfulServer",
-    "dynamic-weak-server-remotecall" -> "examples.dynamic.outsourcedcomputation.remotecall.WeakServer"
+    "dynamic-weak-server-remotecall" -> "examples.dynamic.outsourcedcomputation.remotecall.WeakServer",
+    "simplifiedrules-client-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.Client",
+    "simplifiedrules-powerful-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.PowerfulServer",
+    "simplifiedrules-weak-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.WeakServer"
   )
 }

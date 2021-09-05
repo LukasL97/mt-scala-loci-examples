@@ -44,7 +44,7 @@ import scala.util.Random
 
   val outputNumber: Event[Future[Int]] on Client = on[Client] { implicit! =>
     inputNumber.map { value =>
-      remoteAny[Server].call(
+      remoteAny[Server](selectServer).call(
         compute(value)
       ).asLocal
     }

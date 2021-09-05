@@ -4,7 +4,15 @@ version := "0.0.0"
 
 scalaVersion := "2.13.2"
 
-scalacOptions ++= Seq("-feature", "-deprecation", "-unchecked", "-Xlint", "-Ymacro-annotations", "-Xmacro-settings:loci.macro.codepath_.code/")
+scalacOptions ++= Seq(
+  "-feature",
+  "-deprecation",
+  "-unchecked",
+  "-Xlint",
+  "-Ymacro-annotations",
+  "-Xmacro-settings:loci.macro.codepath_.code/,loci.macro.verbose",
+  "-language:implicitConversions"
+)
 
 enablePlugins(PackPlugin)
 packGenerateWindowsBatFile := false
@@ -16,7 +24,7 @@ commands += Command.single("compileOnly") { (state, path) =>
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
-val localLociVersion = "0.4.0-73-ged6195b"
+val localLociVersion = "0.4.0-74-g0d89100-SNAPSHOT"
 
 libraryDependencies ++= Seq(
   "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,

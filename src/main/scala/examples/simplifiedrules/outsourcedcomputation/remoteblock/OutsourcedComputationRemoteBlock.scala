@@ -1,4 +1,4 @@
-package examples.dynamic.outsourcedcomputation.remoteblock
+package examples.simplifiedrules.outsourcedcomputation.remoteblock
 
 import loci._
 import loci.communicator.tcp._
@@ -25,26 +25,25 @@ import scala.util.Random
     on[Server] { implicit! =>
       throw new NotImplementedError
     }
-    ) and (
+  ) and (
     on[PowerfulServer] { implicit! =>
       println("Doing some powerful GPU computation stuff but really quick...")
       value + 1
     }
-    ) and (
+  ) and (
     on[WeakServer] { implicit! =>
       println("Compute on shitty slow CPU...")
       value + 1
     }
-    )
+  )
 
-  implicit def selectServer: Local[Remote[Server]] on Client = on[Client] { implicit! =>
-    val servers = remote[Server].connected.now
-    servers((new Random).nextInt(servers.size))
+  implicit def selectServer(connected: Seq[Remote[Server]]): Local[Remote[Server]] on Client = on[Client] { implicit! =>
+    connected((new Random).nextInt(connected.size))
   }
 
   val outputNumber: Event[Future[Int]] on Client = on[Client] { implicit! =>
     inputNumber.map { value =>
-      onAny[Server](selectServer).run.capture(value) { implicit! =>
+      onAny[Server].run.capture(value) { implicit! =>
         compute(value)
       }.asLocal
     }
