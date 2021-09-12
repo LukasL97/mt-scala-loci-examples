@@ -17,6 +17,9 @@ object PackMain {
     "dynamic-weak-server-remotecall" -> "examples.dynamic.outsourcedcomputation.remotecall.WeakServer",
     "simplifiedrules-client-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.Client",
     "simplifiedrules-powerful-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.PowerfulServer",
-    "simplifiedrules-weak-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.WeakServer"
+    "simplifiedrules-weak-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.WeakServer",
+    "selfreference-triangle-node-a" -> "examples.selfreference.triangle.NodeA",
+    "selfreference-triangle-node-b" -> "examples.selfreference.triangle.NodeB",
+    "selfreference-triangle-node-c" -> "examples.selfreference.triangle.NodeC"
   )
 }
