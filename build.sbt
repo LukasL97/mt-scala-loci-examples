@@ -24,7 +24,7 @@ commands += Command.single("compileOnly") { (state, path) =>
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
-val localLociVersion = "0.4.0-78-gd6e0e41"
+val localLociVersion = "0.4.0-81-gf24b130"
 
 libraryDependencies ++= Seq(
   "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,

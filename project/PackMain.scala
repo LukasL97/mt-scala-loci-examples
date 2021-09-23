@@ -20,6 +20,9 @@ object PackMain {
     "simplifiedrules-weak-server-remoteblock" -> "examples.simplifiedrules.outsourcedcomputation.remoteblock.WeakServer",
     "selfreference-triangle-node-a" -> "examples.selfreference.triangle.NodeA",
     "selfreference-triangle-node-b" -> "examples.selfreference.triangle.NodeB",
-    "selfreference-triangle-node-c" -> "examples.selfreference.triangle.NodeC"
+    "selfreference-triangle-node-c" -> "examples.selfreference.triangle.NodeC",
+    "recursive-abc-a" -> "examples.recursive.abc.A",
+    "recursive-abc-b" -> "examples.recursive.abc.B",
+    "recursive-abc-c" -> "examples.recursive.abc.C",
   )
 }
