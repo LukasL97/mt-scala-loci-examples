@@ -24,5 +24,7 @@ object PackMain {
     "recursive-abc-a" -> "examples.recursive.abc.A",
     "recursive-abc-b" -> "examples.recursive.abc.B",
     "recursive-abc-c" -> "examples.recursive.abc.C",
+    "selfreference-sbj-a" -> "examples.selfreference.subjectivity.A",
+    "selfreference-sbj-b" -> "examples.selfreference.subjectivity.B"
   )
 }
