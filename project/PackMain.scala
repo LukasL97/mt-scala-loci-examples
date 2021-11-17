@@ -25,6 +25,17 @@ object PackMain {
     "recursive-abc-b" -> "examples.recursive.abc.B",
     "recursive-abc-c" -> "examples.recursive.abc.C",
     "selfreference-sbj-a" -> "examples.selfreference.subjectivity.A",
-    "selfreference-sbj-b" -> "examples.selfreference.subjectivity.B"
+    "selfreference-sbj-b" -> "examples.selfreference.subjectivity.B",
+    "initial-valueref-Top" -> "examples.initial.valueref.Top",
+    "initial-valueref-Bottom" -> "examples.initial.valueref.Bottom",
+    "initial-valueref-Left" -> "examples.initial.valueref.Left",
+    "initial-valueref-Right" -> "examples.initial.valueref.Right",
+    "trust-TrustedKeyDB" -> "examples.valueref.TrustedKeyDB",
+    "trust-PublicKeyDB" -> "examples.valueref.PublicKeyDB",
+    "trust-ResourceManager" -> "examples.valueref.ResourceManager",
+    "trust-KeyManager" -> "examples.valueref.KeyManager",
+    "trust-SuperVisor" -> "examples.valueref.SuperVisor",
+    "trust-Server" -> "examples.valueref.Server",
+    "trust-Client" -> "examples.valueref.Client",
   )
 }
