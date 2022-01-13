@@ -24,11 +24,12 @@ commands += Command.single("compileOnly") { (state, path) =>
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
-val localLociVersion = "0.4.0-91-g11aacfb"
+val localLociVersion = "0.4.0-196-g1102106-SNAPSHOT"
 
 libraryDependencies ++= Seq(
   "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,
   "de.tuda.stg" %% "scala-loci-serializer-upickle" % localLociVersion,
   "de.tuda.stg" %% "scala-loci-communicator-tcp" % localLociVersion,
-  "de.tuda.stg" %% "scala-loci-lang-transmitter-rescala" % localLociVersion
+  "de.tuda.stg" %% "scala-loci-lang-transmitter-rescala" % localLociVersion,
+  "de.tuda.stg" %% "scala-loci-serializer-jsoniter-scala" % localLociVersion
 )
