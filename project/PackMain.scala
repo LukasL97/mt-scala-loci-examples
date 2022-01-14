@@ -47,6 +47,9 @@ object PackMain {
     "sessions-gateway" -> "casestudies.sessions.Gateway",
     "sessions-server" -> "casestudies.sessions.Server",
     "sessions-client" -> "casestudies.sessions.Client",
+    "primesieve-server" -> "casestudies.primesieve.Server",
+    "primesieve-gpu" -> "casestudies.primesieve.GPUServer",
+    "primesieve-client" -> "casestudies.primesieve.Client",
     "a" -> "test.A",
     "b" -> "test.B",
   )
