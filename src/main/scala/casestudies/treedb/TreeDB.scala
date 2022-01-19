@@ -14,25 +14,29 @@ import scala.concurrent.Future
 
   @peergroup type CLI
 
-  @peergroup type DataNode <: { type Tie <: Multiple[Child] }
-  @peergroup type Parent <: DataNode { type Tie <: Multiple[Child] }
-  @peergroup type Child <: DataNode { type Tie <: Single[Parent] with Multiple[Child] }
-  @peer type DataSubNode <: Parent with Child with CLI { type Tie <: Single[Parent] with Multiple[Child] }
+  @peergroup type BaseNode <: { type Tie <: Multiple[Child] }
+  @peergroup type Parent <: BaseNode { type Tie <: Multiple[Child] }
+  @peergroup type Child <: BaseNode { type Tie <: Optional[Parent] with Multiple[Child] }
+  @peer type DataNode <: Parent with Child with CLI { type Tie <: Optional[Parent] with Multiple[Child] with Multiple[Client] }
 
-  @peer type Client <: Parent with CLI { type Tie <: Single[DataSubNode] }
+  @peer type Client <: CLI { type Tie <: Single[DataNode] }
 
   val n = 1000
 
-  val partition: Local[mutable.Map[Int, String]] on DataNode = on[DataNode] local { implicit! =>
+  val partition: Local[mutable.Map[Int, String]] on BaseNode = on[BaseNode] local { implicit ! =>
     mutable.Map.empty[Int, String]
   }
 
-  var keyRange: Local[(Int, Int)] on DataNode = on[DataNode] local { implicit! => (0, 0) }
-  val childrenKeyRanges: Local[mutable.Map[Remote[Child], (Int, Int)]] on DataNode = on[DataNode] local { implicit! =>
+  var keyRange: Local[(Int, Int)] on BaseNode = on[BaseNode] local { implicit ! => (0, 0) }
+  val childrenKeyRanges: Local[mutable.Map[Remote[Child], (Int, Int)]] on BaseNode = on[BaseNode] local { implicit ! =>
     mutable.Map.empty[Remote[Child], (Int, Int)]
   }
 
-  def selectNode(key: Int)(children: Seq[Remote[Child]], self: SelfReference[Child]): Local[Remote[Child]] on Child = on[Child] { implicit! =>
+  /**
+   * This method needs to be placed on the `Child` instead of `DataNode` as it needs to be able to be executed again
+   * on the returned `Child` (recursive remote selection).
+   */
+  def selectNode(key: Int)(children: Seq[Remote[Child]]): Local[Remote[Child]] on Child = on[Child] { implicit! =>
     val keyHash = key % n
     println(keyHash)
     if (keyHash >= keyRange._1 && keyHash < keyRange._2) {
@@ -56,40 +60,26 @@ import scala.concurrent.Future
     }.asLocal
   }
 
-  def getNodesInChildrenSubtrees(): Future[Int] on DataNode = on[DataNode] { implicit! =>
+  /**
+   * Init the key ranges recursively, each node takes a key range for itself and distributes the rest of the key
+   * ranges to its children.
+   */
+  def initKeyRanges(lo: Int, hi: Int): Unit on BaseNode = on[BaseNode] { implicit! =>
     val children = remote[Child].connected
-    Future.sequence(
-      children.map { child =>
-        remote(child).call(getNodesInChildrenSubtrees()).asLocal.map((nodes: Int) => child -> nodes)
-      }
-    ).map(_.map(_._2).sum + 1)
-  }
-
-  def initKeyRanges(lo: Int, hi: Int): Unit on DataNode = on[DataNode] { implicit! =>
-    val children = remote[Child].connected
-    Future.sequence(
-      children.map { child =>
-        remote(child).call(getNodesInChildrenSubtrees()).asLocal.map((nodes: Int) => child -> nodes)
-      }
-    ).foreach { childNodes =>
-      val overallNodes = childNodes.map(_._2).sum + 1
-      val rangeSizePerNode = (hi - lo) / overallNodes
-      var index = 0
-      childNodes.foreach {
-        case (child, nodesInChildSubtree) =>
-          val childLo = lo + index * rangeSizePerNode
-          val childHi = lo + (index + nodesInChildSubtree) * rangeSizePerNode
-          remote(child).call(initKeyRanges(childLo, childHi))
-          childrenKeyRanges.put(child, (childLo, childHi))
-          index += nodesInChildSubtree
-      }
-      keyRange = (lo + index * rangeSizePerNode, hi)
-      println(keyRange)
-      println(childrenKeyRanges)
+    val keyRangeSizePerNode = (hi - lo) / (children.size + 1)
+    children.zipWithIndex.foreach {
+      case (child, index) =>
+        val childLo = lo + index * keyRangeSizePerNode
+        val childHi = lo + (index + 1) * keyRangeSizePerNode
+        remote(child).call(initKeyRanges(childLo, childHi))
+        childrenKeyRanges.put(child, childLo -> childHi)
     }
+    keyRange = (lo + children.size * keyRangeSizePerNode, hi)
+    println(keyRange)
+    println(childrenKeyRanges)
   }
 
-  def main(): Unit on CLI = on[DataSubNode] { implicit! =>
+  def main(): Unit on CLI = on[DataNode] { implicit ! =>
     for (_ <- scala.io.Source.stdin.getLines()) {
       println("INITIALIZE KEY RANGES")
       initKeyRanges(0, n)
@@ -97,8 +87,8 @@ import scala.concurrent.Future
   } and on[Client] { implicit! =>
     for (line <- scala.io.Source.stdin.getLines()) {
       line.split(' ').toSeq match {
-        case Seq("insert", key, value) => remote[DataSubNode].call(insert(key.toInt, value))
-        case Seq("get", key) => remote[DataSubNode].call(get(key.toInt)).asLocal.foreach(println)
+        case Seq("insert", key, value) => remote[DataNode].call(insert(key.toInt, value))
+        case Seq("get", key) => remote[DataNode].call(get(key.toInt)).asLocal.foreach(println)
       }
     }
   }
@@ -106,27 +96,27 @@ import scala.concurrent.Future
 }
 
 object Root extends App {
-  multitier start new Instance[TreeDB.DataSubNode](
-    connect[TreeDB.Child](TCP("localhost", 50001)) and
-      connect[TreeDB.Child](TCP("localhost", 50002)) and
-      listen[TreeDB.Parent](TCP(50003))
+  multitier start new Instance[TreeDB.DataNode](
+    listen[TreeDB.Child](TCP(50001)) and
+      listen[TreeDB.Child](TCP(50002)) and
+      listen[TreeDB.Client](TCP(50003))
   )
 }
 
 object Left extends App {
-  multitier start new Instance[TreeDB.DataSubNode](
-    listen[TreeDB.Parent](TCP(50001))
+  multitier start new Instance[TreeDB.DataNode](
+    connect[TreeDB.Parent](TCP("localhost", 50001))
   )
 }
 
 object Right extends App {
-  multitier start new Instance[TreeDB.DataSubNode](
-    listen[TreeDB.Parent](TCP(50002))
+  multitier start new Instance[TreeDB.DataNode](
+    connect[TreeDB.Parent](TCP("localhost", 50002))
   )
 }
 
 object Client extends App {
   multitier start new Instance[TreeDB.Client](
-    connect[TreeDB.DataSubNode](TCP("localhost", 50003))
+    connect[TreeDB.DataNode](TCP("localhost", 50003))
   )
 }
