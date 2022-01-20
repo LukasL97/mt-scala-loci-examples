@@ -50,6 +50,8 @@ object PackMain {
     "primesieve-server" -> "casestudies.primesieve.Server",
     "primesieve-gpu" -> "casestudies.primesieve.GPUServer",
     "primesieve-client" -> "casestudies.primesieve.Client",
+    "funcsessions-server" -> "casestudies.functionalsessions.Server",
+    "funcsessions-client" -> "casestudies.functionalsessions.Client",
     "a" -> "test.A",
     "b" -> "test.B",
   )
