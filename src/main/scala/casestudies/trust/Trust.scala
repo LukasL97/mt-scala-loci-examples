@@ -1,17 +1,16 @@
-package examples.valueref
+package casestudies.trust
 
 import loci._
-import loci.valueref._
 import loci.communicator.tcp._
-import loci.serializer.upickle._
 import loci.transmitter.transmittable._
+import loci.valueref._
+import loci.serializer.upickle._
 import upickle.default._
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.mutable
-import scala.concurrent.Future
 import upickle.default.macroRW
 
+import scala.collection.mutable
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.Random
 
 case class Key(id: Int)
