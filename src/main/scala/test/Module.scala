@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
   @peer type Node <: { type Tie <: Multiple[Node] }
   @peer type Other <: { type Tie <: Multiple[Node] }
 
-  def f(x: Int via Node): Future[Int] on Node = on[Node] { implicit! =>
-    x.getValue
+  def f(x: Int via Node): Unit on Node = on[Node] { implicit! =>
+    val y: Remote[Node] = x.getRemote
   }
 }

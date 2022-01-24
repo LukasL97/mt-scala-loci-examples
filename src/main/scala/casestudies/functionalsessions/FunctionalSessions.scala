@@ -14,6 +14,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.StdIn
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
+/**
+ * Showcase for remote value reference to a closure that is only accessed locally and therefore does not require
+ * serialization.
+ *
+ * The Client initializes communication with the Server and gets back a reference to a login closure, which it uses in
+ * a remote block to login to the Server. Then it uses the session it gets from the server to add entries to a db or
+ * get all entries in the DB.
+ */
 @multitier object FunctionalSessions {
   @peer type Server <: { type Tie <: Multiple[Client] }
   @peer type Client <: { type Tie <: Single[Server] }
@@ -43,6 +51,7 @@ import scala.jdk.CollectionConverters.CollectionHasAsScala
     StdIn.readLine()
     val loginClosure: Future[((String, String) => String via Server) via Server] = {
       on[Server].run {
+        // create a remote value reference to a closure, mapping user and password to a session object (another remote value reference)
         implicit! => {
           (user: String, password: String) =>
             user.asValueRef
@@ -54,6 +63,7 @@ import scala.jdk.CollectionConverters.CollectionHasAsScala
     val password = StdIn.readLine().trim
     val userSession: Future[String via Server] = loginClosure.flatMap { login =>
       on[Server].run.capture(login, user, password) { implicit! =>
+        // use the login closure reference locally on the server to login with user and password
         login.getValueLocally(user, password)
       }.asLocal
     }

@@ -10,6 +10,15 @@ import upickle.default._
 import scala.collection.mutable
 import scala.concurrent.Future
 
+/**
+ * Showcase for recursive dynamic remote selection.
+ *
+ * The Client inserts an entry with a key at the root DataNode of the TreeDB. The root then recursively selects the child node that
+ * should hold the key of the inserted entry, based on a pre-defined key range for each node. If a node does contain have
+ * the correct key range, it returns a self reference in the `selectNode` method, leading the recursion to stop there.
+ *
+ * The get method uses the same recursive approach.
+ */
 @multitier object TreeDB {
 
   @peergroup type CLI

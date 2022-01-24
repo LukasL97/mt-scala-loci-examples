@@ -9,6 +9,7 @@ object CUDASieve {
 
   private val outputPattern = new Regex(""".*100% complete(\d+) primes counted.*""")
 
+  // local directory of cudasieve, git repo: https://github.com/curtisseizert/CUDASieve
   private def createCommand(bottom: Long, top: Long): Seq[String] =
     Seq("/home/lukas/Documents/thesis-scala-loci/CUDASieve/cudasieve", "-b", bottom.toString, "-t", top.toString)
 

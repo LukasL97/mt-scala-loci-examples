@@ -91,6 +91,14 @@ object GetResponse {
   implicit val serializable: ReadWriter[GetResponse] = macroRW[GetResponse]
 }
 
+/**
+ * Showcase for remote value references and dynamic remote selection based on network monitoring.
+ *
+ * The Client sends a request to the Gateway, which selects a Server based on the lowest number of bytes sent to a
+ * remote of type Server. Then the Server returns a remote value reference to a Session object that the Client sends with
+ * every further request. On every further request of a Client, the Gateway uses the remote Server the Session lives on
+ * to route the request to, in order to make sure that a Client Session is handled by only one Server.
+ */
 @multitier object Sessions {
 
   @peer type DB <: { type Tie <: Multiple[Server] }

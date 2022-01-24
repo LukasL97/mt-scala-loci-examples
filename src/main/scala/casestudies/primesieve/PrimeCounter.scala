@@ -9,6 +9,13 @@ import upickle.default._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
+/**
+ * Showcase for peergroup and dynamic remote selection with self reference.
+ *
+ * The Client requests the number of primes upto a certain number from the Server. If the number is not too big, the
+ * Server executes the request itself (via self reference). Otherwise, it passes it on to a connected GPUServer (via remote reference).
+ * The GPUServer implements the `countPrimesBetween` method using CUDA on the GPU, while the Server uses normal Scala code on the CPU instead.
+ */
 @multitier object PrimeCounter {
   @peergroup type PrimeCounter
   @peer type Server <: PrimeCounter { type Tie <: Multiple[Client] with Multiple[GPUServer] }
