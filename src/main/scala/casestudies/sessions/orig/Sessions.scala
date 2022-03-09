@@ -1,16 +1,21 @@
-package casestudies.sessions
+package casestudies.sessions.orig
 
 import loci._
-import loci.valueref._
 import loci.communicator.tcp._
-import loci.serializer.upickle._
+import loci.language.Placed.lift
 import loci.transmitter.transmittable._
 import upickle.default._
+import loci.serializer.upickle._
 
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration.Duration
 import scala.concurrent.duration.DurationInt
 import scala.io.StdIn
 import scala.jdk.CollectionConverters.CollectionHasAsScala
@@ -91,20 +96,42 @@ object GetResponse {
   implicit val serializable: ReadWriter[GetResponse] = macroRW[GetResponse]
 }
 
-/**
- * Showcase for remote value references and dynamic remote selection based on network monitoring.
- *
- * The Client sends a request to the Gateway, which selects a Server based on the lowest number of bytes sent to a
- * remote of type Server. Then the Server returns a remote value reference to a Session object that the Client sends with
- * every further request. On every further request of a Client, the Gateway uses the remote Server the Session lives on
- * to route the request to, in order to make sure that a Client Session is handled by only one Server.
- */
+case class SessionReference(serverId: UUID, sessionId: UUID)
+
+object SessionReference {
+  implicit val transmittable: IdenticallyTransmittable[SessionReference] = IdenticallyTransmittable()
+  implicit val serializable: ReadWriter[SessionReference] = macroRW[SessionReference]
+}
+
 @multitier object Sessions {
 
   @peer type DB <: { type Tie <: Multiple[Server] }
-  @peer type Server <: { type Tie <: Single[Gateway] with Multiple[Server] with Single[DB] }
+  @peer type Server <: { type Tie <: Single[Gateway] with Single[DB] }
   @peer type Gateway <: { type Tie <: Multiple[Client] with Multiple[Server] }
   @peer type Client <: { type Tie <: Single[Gateway] }
+
+  val id: UUID on Server = on[Server] { implicit! => UUID.randomUUID() }
+
+  val cachedServers: Local[mutable.Map[UUID, Remote[Server]]] on Gateway = on[Gateway] { implicit ! =>
+    mutable.Map.empty[UUID, Remote[Server]]
+  }
+
+  val sentMessages: Local[mutable.Map[Remote[Server], Seq[LocalDateTime]]] on Gateway = on[Gateway] { implicit ! =>
+    mutable.Map.empty[Remote[Server], Seq[LocalDateTime]]
+  }
+
+  def getSentMessages(server: Remote[Server], last: Duration): Local[Int] on Gateway = on[Gateway] { implicit! =>
+    val recentMessages = sentMessages
+      .getOrElse(server, Seq.empty[LocalDateTime])
+      .filter(_.isAfter(LocalDateTime.now().minus(last.toMillis, ChronoUnit.MILLIS)))
+    sentMessages.put(server, recentMessages)
+    recentMessages.size
+  }
+
+  def putSentMessage(server: Remote[Server]): Local[Unit] on Gateway = on[Gateway] { implicit! =>
+    val serverMessages = sentMessages.getOrElse(server, Seq.empty[LocalDateTime])
+    sentMessages.put(server, serverMessages.appended(LocalDateTime.now()))
+  }
 
   val db: Local[ConcurrentHashMap[String, ConcurrentLinkedQueue[String]]] on DB = on[DB] { implicit! =>
     new ConcurrentHashMap[String, ConcurrentLinkedQueue[String]]()
@@ -125,61 +152,93 @@ object GetResponse {
     db.getOrDefault(user, new ConcurrentLinkedQueue[String]()).asScala.toSeq
   }
 
-  implicit def selectServer(servers: Seq[Remote[Server]])(implicit session: Option[SessionState via Server]): Local[Remote[Server]] on Gateway = on[Gateway] { implicit ! =>
-    session.map(_.getRemote).getOrElse(
-      servers.map { server =>
-        server -> networkMonitor.sumSentBytes(server, last = 5.minutes)
-      }.minBy(_._2)._1
-    )
+  def selectServer(session: Option[SessionReference]): Local[Future[Remote[Server]]] on Gateway = on[Gateway] { implicit ! =>
+    session.map {
+      case SessionReference(serverId, _) =>
+        cachedServers.get(serverId).map(Future.successful).getOrElse(getUncachedServer(serverId))
+    }.getOrElse {
+      Future.successful(
+        remote[Server].connected.map {
+          server => server -> (getSentMessages(server, last = 5.minutes): Int)
+        }.minBy(_._2)._1
+      )
+    }
   }
 
-  def requestServer(request: Request)(implicit session: Option[SessionState via Server]): Future[(Response, SessionState via Server)] on Gateway = on[Gateway] { implicit ! =>
-    remoteAny.apply[Server].call(executeRequest(request, session)).asLocal
+  def getUncachedServer(serverId: UUID): Local[Future[Remote[Server]]] on Gateway = on[Gateway] { implicit! =>
+    val uncachedServers = remote[Server].connected.toSet.diff(cachedServers.values.toSet)
+    Future.sequence(
+      uncachedServers.map { server => (id from server).asLocal.map(_ -> server) }
+    ).map { servers =>
+      servers.foreach { case (id, server) => cachedServers.put(id, server) }
+      cachedServers.getOrElse(serverId, throw new RuntimeException(s"Unknown server id $serverId"))
+    }
+  }
+
+  def requestServer(request: Request, session: Option[SessionReference]): Future[(Response, SessionReference)] on Gateway = on[Gateway] { implicit! =>
+    selectServer(session).flatMap { server =>
+      putSentMessage(server)
+      remote(server).call(executeRequest(request, session)).asLocal
+    }
   }
 
   def executeRequest(
     request: Request,
-    session: Option[SessionState via Server]
-  ): Future[(Response, SessionState via Server)] on Server = on[Server] { implicit ! =>
+    session: Option[SessionReference]
+  ): Future[(Response, SessionReference)] on Server = on[Server] { implicit! =>
     (session, request) match {
       case (None, InitRequest()) =>
-        Future.successful(AwaitLoginResponse("Enter user and password:") -> AwaitLogin().asValueRef)
+        Future.successful(AwaitLoginResponse("Enter user and password:") -> newSessionReference(AwaitLogin()))
       case (None, _) =>
-        Future.successful(ErrorResponse("Missing session. Enter user and password:") -> AwaitLogin().asValueRef)
-      case (Some(session), request) => session.getValue.flatMap { state =>
+        Future.successful(ErrorResponse("Missing session. Enter user and password:") -> newSessionReference(AwaitLogin()))
+      case (Some(ref), request) =>
+        val state: SessionState = getSession(ref)
         (state, request) match {
           case (AwaitLogin(), LoginRequest(user, password)) =>
-            Future.successful(WelcomeResponse(s"Welcome, $user!") -> LoggedIn(user).asValueRef)
+            Future.successful(WelcomeResponse(s"Welcome, $user!") -> newSessionReference(LoggedIn(user)))
           case (LoggedIn(user), AddRequest(entry)) =>
             remote[DB].call(addEntry(user, entry)).asLocal.map { added =>
-              AddResponse(added) -> session
+              AddResponse(added) -> ref
             }
           case (LoggedIn(user), GetRequest()) =>
             remote[DB].call(getEntries(user)).asLocal.map { entries =>
-              GetResponse(entries) -> session
+              GetResponse(entries) -> ref
             }
           case (_, _) =>
-            Future.successful(ErrorResponse("Invalid request. Enter user and password:") -> AwaitLogin().asValueRef)
+            Future.successful(ErrorResponse("Invalid request. Enter user and password:") -> newSessionReference(AwaitLogin()))
         }
-      }
     }
+  }
+
+  val sessionReferences: Local[mutable.Map[UUID, SessionState]] on Server = on[Server] { implicit! =>
+    mutable.Map.empty[UUID, SessionState]
+  }
+
+  def newSessionReference(session: SessionState): Local[SessionReference] on Server = on[Server] { implicit! =>
+    val sessionId = UUID.randomUUID()
+    sessionReferences.put(sessionId, session)
+    SessionReference(id, sessionId)
+  }
+
+  def getSession(ref: SessionReference): Local[SessionState] on Server = on[Server] { implicit! =>
+    sessionReferences.getOrElse(ref.sessionId, throw new RuntimeException(s"Unknown session id ${ref.sessionId}"))
   }
 
   def main(): Unit on Client = on[Client] { implicit! =>
     StdIn.readLine()
-    remote[Gateway].call(requestServer(InitRequest())(None)).asLocal.foreach {
+    remote[Gateway].call(requestServer(InitRequest(), None)).asLocal.foreach {
       case (AwaitLoginResponse(message), session) =>
         println(message)
         val user = StdIn.readLine().trim
         val password = StdIn.readLine().trim
-        remote[Gateway].call(requestServer(LoginRequest(user, password))(Option(session))).asLocal.foreach {
+        remote[Gateway].call(requestServer(LoginRequest(user, password), Option(session))).asLocal.foreach {
           case (WelcomeResponse(message), session) =>
             println(message)
             var currentSession = session
             for (line <- scala.io.Source.stdin.getLines()) {
               val response = line.trim match {
-                case "" => remote[Gateway].call(requestServer(GetRequest())(Option(currentSession))).asLocal
-                case entry => remote[Gateway].call(requestServer(AddRequest(entry))(Option(currentSession))).asLocal
+                case "" => remote[Gateway].call(requestServer(GetRequest(), Option(currentSession))).asLocal
+                case entry => remote[Gateway].call(requestServer(AddRequest(entry), Option(currentSession))).asLocal
               }
               response.collect {
                 case (GetResponse(entries), newSession) =>
@@ -204,8 +263,7 @@ object DB extends App {
 object Gateway extends App {
   multitier start new Instance[Sessions.Gateway](
     listen[Sessions.Server](TCP(50001)) and
-      listen[Sessions.Client](TCP(50002)),
-    NetworkMonitorConfig(5.seconds, 10.minutes, 10.minutes)
+      listen[Sessions.Client](TCP(50002))
   )
 }
 

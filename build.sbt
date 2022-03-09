@@ -19,7 +19,7 @@ packGenerateWindowsBatFile := false
 packMain := PackMain.paths
 
 commands += Command.single("compileOnly") { (state, path) =>
-  s"""set sources in Compile := (sources in Compile).value.filter(_.getPath == "$path")""" :: "compile" :: state
+  s"""set sources in Compile := (sources in Compile).value.filter(_.getPath.startsWith("$path"))""" :: "compile" :: state
 }
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)

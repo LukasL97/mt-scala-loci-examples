@@ -17,10 +17,14 @@ object PackMain {
     "sessions-gateway" -> "casestudies.sessions.Gateway",
     "sessions-server" -> "casestudies.sessions.Server",
     "sessions-client" -> "casestudies.sessions.Client",
+    "sessions-db-orig" -> "casestudies.sessions.orig.DB",
+    "sessions-gateway-orig" -> "casestudies.sessions.orig.Gateway",
+    "sessions-server-orig" -> "casestudies.sessions.orig.Server",
+    "sessions-client-orig" -> "casestudies.sessions.orig.Client",
     "primesieve-server" -> "casestudies.primesieve.Server",
     "primesieve-gpu" -> "casestudies.primesieve.GPUServer",
     "primesieve-client" -> "casestudies.primesieve.Client",
     "funcsessions-server" -> "casestudies.functionalsessions.Server",
-    "funcsessions-client" -> "casestudies.functionalsessions.Client"
+    "funcsessions-client" -> "casestudies.functionalsessions.Client",
   )
 }
