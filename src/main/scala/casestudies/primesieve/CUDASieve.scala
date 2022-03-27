@@ -11,7 +11,7 @@ object CUDASieve {
 
   // local directory of cudasieve, git repo: https://github.com/curtisseizert/CUDASieve
   private def createCommand(bottom: Long, top: Long): Seq[String] =
-    Seq("/home/lukas/Documents/thesis-scala-loci/CUDASieve/cudasieve", "-b", bottom.toString, "-t", top.toString)
+    Seq("../CUDASieve/cudasieve", "-b", bottom.toString, "-t", top.toString)
 
   def countPrimesBetween(bottom: Long, top: Long): Int = {
     var result: Int = 0

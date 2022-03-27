@@ -18,7 +18,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
  */
 @multitier object PrimeCounter {
   @peergroup type PrimeCounter
-  @peer type Server <: PrimeCounter { type Tie <: Multiple[Client] with Multiple[GPUServer] }
+  @peer type Server <: PrimeCounter { type Tie <: Multiple[Client] with Single[GPUServer] }
   @peer type GPUServer <: PrimeCounter { type Tie <: Single[Server] }
   @peer type Client <: { type Tie <: Single[Server] }
 
@@ -30,7 +30,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
     CUDASieve.countPrimesBetween(bottom, top)
   }
 
-  def selectPrimeCounter(top: Long)(connected: Seq[Remote[PrimeCounter]]): Local[Remote[PrimeCounter]] on Server = on[Server] { implicit! =>
+  implicit def selectPrimeCounter(connected: Seq[Remote[PrimeCounter]])(implicit top: Long): Local[Remote[PrimeCounter]] on Server = on[Server] { implicit! =>
     if (top < 10000) {
       self
     } else {
@@ -38,13 +38,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
     }
   }
 
-  def requestPrimesBetween(bottom: Long, top: Long): Future[Int] on Server = on[Server] { implicit! =>
-    remoteAny.apply[PrimeCounter](selectPrimeCounter(top)(_)).call(countPrimesBetween(bottom, top)).asLocal
+  def requestPrimesBetween(bottom: Long)(implicit top: Long): Future[Int] on Server = on[Server] { implicit! =>
+    remoteAny.apply[PrimeCounter].call(countPrimesBetween(bottom, top)).asLocal
   }
 
   def main(): Unit on Client = on[Client] { implicit! =>
     for (line <- scala.io.Source.stdin.getLines()) {
-      remote[Server].call(requestPrimesBetween(0, line.toLong)).asLocal.foreach { primes =>
+      remote[Server].call(requestPrimesBetween(0)(line.toLong)).asLocal.foreach { primes =>
         println(s"Found $primes primes between 0 and $line")
       }
     }
@@ -55,13 +55,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 object Server extends App {
   multitier start new Instance[PrimeCounter.Server](
     listen[PrimeCounter.Client](TCP(50001)) and
-      listen[PrimeCounter.GPUServer](TCP(50002))
+      connect[PrimeCounter.GPUServer](TCP("localhost", 50002))
   )
 }
 
 object GPUServer extends App {
   multitier start new Instance[PrimeCounter.GPUServer](
-    connect[PrimeCounter.Server](TCP("localhost", 50002))
+    listen[PrimeCounter.Server](TCP(50002))
   )
 }
 
