@@ -45,9 +45,8 @@ import scala.concurrent.Future
    * This method needs to be placed on the `Child` instead of `DataNode` as it needs to be able to be executed again
    * on the returned `Child` (recursive remote selection).
    */
-  def selectNode(key: Int)(children: Seq[Remote[Child]]): Local[Remote[Child]] on Child = on[Child] { implicit! =>
+  implicit def selectNode(children: Seq[Remote[Child]])(implicit key: Int): Local[Remote[Child]] on Child = on[Child] { implicit! =>
     val keyHash = key % n
-    println(keyHash)
     if (keyHash >= keyRange._1 && keyHash < keyRange._2) {
       self
     } else {
@@ -55,17 +54,24 @@ import scala.concurrent.Future
     }
   }
 
-  def insert(key: Int, value: String): Future[Option[String]] on Child = on[Child] { implicit! =>
-    onAny.recursive[Child](selectNode(key) _).run.capture(key, value) { implicit! =>
+  def insert(implicit key: Int, value: String): Future[Option[String]] on Child = on[Child] { implicit! =>
+    onAny.recursive[Child].run.capture(key, value) { implicit! =>
       println(s"INSERT $key: $value")
       partition.put(key, value)
     }.asLocal
   }
 
-  def get(key: Int): Future[Option[String]] on Child = on[Child] { implicit! =>
-    onAny.recursive[Child](selectNode(key) _).run.capture(key) { implicit! =>
+  def get(implicit key: Int): Future[Option[String]] on Child = on[Child] { implicit! =>
+    onAny.recursive[Child].run.capture(key) { implicit! =>
       println(s"GET $key")
       partition.get(key)
+    }.asLocal
+  }
+
+  def delete(implicit key: Int): Future[Option[String]] on Child = on[Child] { implicit! =>
+    onAny.recursive[Child].run.capture(key) { implicit! =>
+      println(s"DELETE $key")
+      partition.remove(key)
     }.asLocal
   }
 
@@ -98,6 +104,7 @@ import scala.concurrent.Future
       line.split(' ').toSeq match {
         case Seq("insert", key, value) => remote[DataNode].call(insert(key.toInt, value))
         case Seq("get", key) => remote[DataNode].call(get(key.toInt)).asLocal.foreach(println)
+        case Seq("delete", key) => remote[DataNode].call(delete(key.toInt))
       }
     }
   }
