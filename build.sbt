@@ -10,7 +10,7 @@ scalacOptions ++= Seq(
   "-unchecked",
   "-Xlint",
   "-Ymacro-annotations",
-  "-Xmacro-settings:loci.macro.codepath_.code/,loci.macro.verbose",
+  "-Xmacro-settings:loci.macro.verbose",
   "-language:implicitConversions"
 )
 
@@ -24,7 +24,7 @@ commands += Command.single("compileOnly") { (state, path) =>
 
 resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
 
-val localLociVersion = "0.4.0-196-g1102106-SNAPSHOT"
+val localLociVersion = "0.4.0-200-g9f23561-SNAPSHOT"
 
 libraryDependencies ++= Seq(
   "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,

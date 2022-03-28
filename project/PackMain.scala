@@ -1,18 +1,16 @@
 object PackMain {
   val paths = Map(
-    "trust-TrustedKeyDB" -> "casestudies.valueref.TrustedKeyDB",
-    "trust-PublicKeyDB" -> "casestudies.valueref.PublicKeyDB",
-    "trust-ResourceManager" -> "casestudies.valueref.ResourceManager",
-    "trust-KeyManager" -> "casestudies.valueref.KeyManager",
-    "trust-SuperVisor" -> "casestudies.valueref.SuperVisor",
-    "trust-Server" -> "casestudies.valueref.Server",
-    "trust-Client" -> "casestudies.valueref.Client",
+    "trust-TrustedKeyDB" -> "casestudies.trust.TrustedKeyDB",
+    "trust-PublicKeyDB" -> "casestudies.trust.PublicKeyDB",
+    "trust-ResourceManager" -> "casestudies.trust.ResourceManager",
+    "trust-KeyManager" -> "casestudies.trust.KeyManager",
+    "trust-SuperVisor" -> "casestudies.trust.SuperVisor",
+    "trust-Server" -> "casestudies.trust.Server",
+    "trust-Client" -> "casestudies.trust.Client",
     "treedb-root" -> "casestudies.treedb.Root",
     "treedb-left" -> "casestudies.treedb.Left",
     "treedb-right" -> "casestudies.treedb.Right",
     "treedb-client" -> "casestudies.treedb.Client",
-    "image-server" -> "casestudies.imageviewer.Server",
-    "image-client" -> "casestudies.imageviewer.Client",
     "sessions-db" -> "casestudies.sessions.DB",
     "sessions-gateway" -> "casestudies.sessions.Gateway",
     "sessions-server" -> "casestudies.sessions.Server",
@@ -23,8 +21,6 @@ object PackMain {
     "sessions-client-orig" -> "casestudies.sessions.orig.Client",
     "primesieve-server" -> "casestudies.primesieve.Server",
     "primesieve-gpu" -> "casestudies.primesieve.GPUServer",
-    "primesieve-client" -> "casestudies.primesieve.Client",
-    "funcsessions-server" -> "casestudies.functionalsessions.Server",
-    "funcsessions-client" -> "casestudies.functionalsessions.Client",
+    "primesieve-client" -> "casestudies.primesieve.Client"
   )
 }
