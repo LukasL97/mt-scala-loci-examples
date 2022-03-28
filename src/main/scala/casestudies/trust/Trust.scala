@@ -23,11 +23,11 @@ object Key {
 @multitier object Trust {
 
   @peer type TrustedKeyDB <: { type Tie <: Multiple[ResourceManager] with Multiple[KeyManager] }
-  @peer type PublicKeyDB <: { type Tie <: Multiple[SuperVisor] with Multiple[KeyManager] }
+  @peer type PublicKeyDB <: { type Tie <: Multiple[Supervisor] with Multiple[KeyManager] }
 
-  @peer type KeyManager <: { type Tie <: Single[PublicKeyDB] with Single[TrustedKeyDB] with Multiple[Client] with Multiple[SuperVisor] }
-  @peer type SuperVisor <: { type Tie <: Single[PublicKeyDB] with Multiple[ResourceManager] with Single[KeyManager] }
-  @peer type ResourceManager <: { type Tie <: Single[TrustedKeyDB] with Multiple[Server] with Single[SuperVisor] }
+  @peer type KeyManager <: { type Tie <: Single[PublicKeyDB] with Single[TrustedKeyDB] with Multiple[Client] with Multiple[Supervisor] }
+  @peer type Supervisor <: { type Tie <: Single[PublicKeyDB] with Multiple[ResourceManager] with Single[KeyManager] }
+  @peer type ResourceManager <: { type Tie <: Single[TrustedKeyDB] with Multiple[Server] with Single[Supervisor] }
 
   @peer type Server <: { type Tie <: Single[ResourceManager] with Multiple[Client] }
   @peer type Client <: { type Tie <: Single[Server] with Single[KeyManager] }
@@ -62,7 +62,7 @@ object Key {
   }
 
   /**
-   * The [[SuperVisor]] can ask the [[KeyManager]] to mark a public key as trusted. It sends the reference to the key
+   * The [[Supervisor]] can ask the [[KeyManager]] to mark a public key as trusted. It sends the reference to the key
    * living on [[PublicKeyDB]] to the [[KeyManager]], which accesses the reference, then asks the [[TrustedKeyDB]]
    * to add the key to its map and returns a new reference to the key living on [[TrustedKeyDB]].
    */
@@ -75,14 +75,16 @@ object Key {
   }
 
   /**
-   * If the [[SuperVisor]] confirms the reference to the public key, it asks the [[KeyManager]] to mark it as trusted
+   * If the [[Supervisor]] confirms the reference to the public key, it asks the [[KeyManager]] to mark it as trusted
    * and returns the resulting reference to the trusted key.
    */
-  def confirm(key: Key via PublicKeyDB): Option[Future[Key via TrustedKeyDB]] on SuperVisor = on[SuperVisor] { implicit! =>
-    println(s"Do you trust the key?")
-    scala.io.StdIn.readLine().toLowerCase match {
-      case "y" | "yes" => Some(remote[KeyManager].call(trust(key)).asLocal)
-      case "n" | "no" => None
+  def confirm(key: Key via PublicKeyDB): Future[Option[Key via TrustedKeyDB]] on Supervisor = on[Supervisor] { implicit ! =>
+    key.getValue.flatMap { k =>
+      println(s"Do you trust the key: $k?")
+      scala.io.StdIn.readLine().toLowerCase match {
+        case "y" | "yes" => remote[KeyManager].call(trust(key)).asLocal.map(Option(_))
+        case "n" | "no" => Future.successful(None)
+      }
     }
   }
 
@@ -96,15 +98,15 @@ object Key {
   /**
    * The [[Server]] asks the [[ResourceManager]] for a resource given some reference to a key. If the reference refers
    * to a trusted key, the [[ResourceManager]] just unlocks the resource. Otherwise, the [[ResourceManager]] asks the
-   * [[SuperVisor]] to confirm that the public key can be trusted, and only if this is the case the [[ResourceManager]]
+   * [[Supervisor]] to confirm that the public key can be trusted, and only if this is the case the [[ResourceManager]]
    * unlocks the resource.
    */
   def handle(key: Key via (TrustedKeyDB | PublicKeyDB)): Future[Option[Resource]] on ResourceManager = on[ResourceManager] { implicit! =>
     key.asVia[TrustedKeyDB] match {
       case Some(key) => Future.successful(unlock(key))
-      case None => remote[SuperVisor].call(confirm(key.asVia[PublicKeyDB].get)).asLocal.flatMap {
-        case Some(key) => key.map(unlock)
-        case None => Future.successful(None)
+      case None => remote[Supervisor].call(confirm(key.asVia[PublicKeyDB].get)).asLocal.map {
+        case Some(key) => unlock(key)
+        case None => None
       }
     }
   }
@@ -121,7 +123,7 @@ object Key {
     for (_ <- scala.io.Source.stdin.getLines()) {
       remote[KeyManager].call(getKey(id)).asLocal.foreach { keyRef =>
         val serverResponse = on[Server].run.capture(keyRef) { implicit! =>
-          remote.call(handle(keyRef)).asLocal.map {
+          remote[ResourceManager].call(handle(keyRef)).asLocal.map {
             case Some(resource) => s"Doing stuff with resource: $resource"
             case None => "Could not do stuff without a resource"
           }
@@ -142,7 +144,7 @@ object TrustedKeyDB extends App {
 
 object PublicKeyDB extends App {
   multitier start new Instance[Trust.PublicKeyDB](
-    listen[Trust.SuperVisor](TCP(50003)) and
+    listen[Trust.Supervisor](TCP(50003)) and
       listen[Trust.KeyManager](TCP(50004))
   )
 }
@@ -152,12 +154,12 @@ object KeyManager extends App {
     connect[Trust.PublicKeyDB](TCP("localhost", 50004)) and
       connect[Trust.TrustedKeyDB](TCP("localhost", 50002)) and
       listen[Trust.Client](TCP(50007)) and
-      listen[Trust.SuperVisor](TCP(50008))
+      listen[Trust.Supervisor](TCP(50008))
   )
 }
 
 object SuperVisor extends App {
-  multitier start new Instance[Trust.SuperVisor](
+  multitier start new Instance[Trust.Supervisor](
     connect[Trust.PublicKeyDB](TCP("localhost", 50003)) and
       listen[Trust.ResourceManager](TCP(50006)) and
       connect[Trust.KeyManager](TCP("localhost", 50008))
@@ -168,7 +170,7 @@ object ResourceManager extends App {
   multitier start new Instance[Trust.ResourceManager](
     connect[Trust.TrustedKeyDB](TCP("localhost", 50001)) and
       listen[Trust.Server](TCP(50005)) and
-      connect[Trust.SuperVisor](TCP("localhost", 50006))
+      connect[Trust.Supervisor](TCP("localhost", 50006))
   )
 }
 
