@@ -102,7 +102,7 @@ object GetResponse {
 @multitier object Sessions {
 
   @peer type DB <: { type Tie <: Multiple[Server] }
-  @peer type Server <: { type Tie <: Single[Gateway] with Multiple[Server] with Single[DB] }
+  @peer type Server <: { type Tie <: Single[Gateway] with Single[DB] }
   @peer type Gateway <: { type Tie <: Multiple[Client] with Multiple[Server] }
   @peer type Client <: { type Tie <: Single[Gateway] }
 
@@ -125,42 +125,43 @@ object GetResponse {
     db.getOrDefault(user, new ConcurrentLinkedQueue[String]()).asScala.toSeq
   }
 
-  implicit def selectServer(servers: Seq[Remote[Server]])(implicit session: Option[SessionState via Server]): Local[Remote[Server]] on Gateway = on[Gateway] { implicit ! =>
-    session.map(_.getRemote).getOrElse(
-      servers.map { server =>
-        server -> networkMonitor.sumSentBytes(server, last = 5.minutes)
-      }.minBy(_._2)._1
-    )
-  }
+  implicit def selectServer(servers: Seq[Remote[Server]])(implicit session: Option[SessionState via Server]): Local[Remote[Server]] on Gateway =
+    on[Gateway] { implicit! =>
+      session.map(_.getRemote).getOrElse(
+        servers.map { server =>
+          server -> networkMonitor.sumSentBytes(server, last = 5.minutes)
+        }.minBy(_._2)._1
+      )
+    }
 
-  def requestServer(request: Request)(implicit session: Option[SessionState via Server]): Future[(Response, SessionState via Server)] on Gateway = on[Gateway] { implicit ! =>
-    remoteAny.apply[Server].call(executeRequest(request, session)).asLocal
-  }
+  def requestServer(request: Request)(implicit session: Option[SessionState via Server]): Future[(Response, SessionState via Server)] on Gateway =
+    on[Gateway] { implicit! =>
+      remoteAny.apply[Server].call(executeRequest(request, session)).asLocal
+    }
 
   def executeRequest(
     request: Request,
     session: Option[SessionState via Server]
-  ): Future[(Response, SessionState via Server)] on Server = on[Server] { implicit ! =>
-    (session, request) match {
+  ): Future[(Response, SessionState via Server)] on Server = on[Server] { implicit! =>
+    println(s"EXECUTING REQUEST: $request")
+    session -> request match {
       case (None, InitRequest()) =>
         Future.successful(AwaitLoginResponse("Enter user and password:") -> AwaitLogin().asValueRef)
       case (None, _) =>
         Future.successful(ErrorResponse("Missing session. Enter user and password:") -> AwaitLogin().asValueRef)
-      case (Some(session), request) => session.getValue.flatMap { state =>
-        (state, request) match {
-          case (AwaitLogin(), LoginRequest(user, password)) =>
-            Future.successful(WelcomeResponse(s"Welcome, $user!") -> LoggedIn(user).asValueRef)
-          case (LoggedIn(user), AddRequest(entry)) =>
-            remote[DB].call(addEntry(user, entry)).asLocal.map { added =>
-              AddResponse(added) -> session
-            }
-          case (LoggedIn(user), GetRequest()) =>
-            remote[DB].call(getEntries(user)).asLocal.map { entries =>
-              GetResponse(entries) -> session
-            }
-          case (_, _) =>
-            Future.successful(ErrorResponse("Invalid request. Enter user and password:") -> AwaitLogin().asValueRef)
-        }
+      case (Some(session), request) => session.getValueLocally -> request match {
+        case (AwaitLogin(), LoginRequest(user, password)) =>
+          Future.successful(WelcomeResponse(s"Welcome, $user!") -> LoggedIn(user).asValueRef)
+        case (LoggedIn(user), AddRequest(entry)) =>
+          remote[DB].call(addEntry(user, entry)).asLocal.map { added =>
+            AddResponse(added) -> session
+          }
+        case (LoggedIn(user), GetRequest()) =>
+          remote[DB].call(getEntries(user)).asLocal.map { entries =>
+            GetResponse(entries) -> session
+          }
+        case (_, _) =>
+          Future.successful(ErrorResponse("Invalid request. Enter user and password:") -> AwaitLogin().asValueRef)
       }
     }
   }

@@ -37,10 +37,16 @@ object LoggedIn {
   implicit val serializable: ReadWriter[LoggedIn] = macroRW[LoggedIn]
 }
 
-sealed trait Request
+sealed trait Request {
+  def getBytes: Int = 1
+}
 case class InitRequest() extends Request
-case class LoginRequest(user: String, password: String) extends Request
-case class AddRequest(entry: String) extends Request
+case class LoginRequest(user: String, password: String) extends Request {
+  override def getBytes: Int = super.getBytes + user.getBytes.length + password.getBytes.length
+}
+case class AddRequest(entry: String) extends Request {
+  override def getBytes: Int = super.getBytes + entry.getBytes.length
+}
 case class GetRequest() extends Request
 
 object Request {
@@ -103,6 +109,11 @@ object SessionReference {
   implicit val serializable: ReadWriter[SessionReference] = macroRW[SessionReference]
 }
 
+case class BytesInfo(
+  time: LocalDateTime,
+  bytes: Int
+)
+
 @multitier object Sessions {
 
   @peer type DB <: { type Tie <: Multiple[Server] }
@@ -112,25 +123,25 @@ object SessionReference {
 
   val id: UUID on Server = on[Server] { implicit! => UUID.randomUUID() }
 
-  val cachedServers: Local[mutable.Map[UUID, Remote[Server]]] on Gateway = on[Gateway] { implicit ! =>
+  val cachedServers: Local[mutable.Map[UUID, Remote[Server]]] on Gateway = on[Gateway] { implicit! =>
     mutable.Map.empty[UUID, Remote[Server]]
   }
 
-  val sentMessages: Local[mutable.Map[Remote[Server], Seq[LocalDateTime]]] on Gateway = on[Gateway] { implicit ! =>
-    mutable.Map.empty[Remote[Server], Seq[LocalDateTime]]
+  val sentBytes: Local[mutable.Map[Remote[Server], Seq[BytesInfo]]] on Gateway = on[Gateway] { implicit! =>
+    mutable.Map.empty[Remote[Server], Seq[BytesInfo]]
   }
 
-  def getSentMessages(server: Remote[Server], last: Duration): Local[Int] on Gateway = on[Gateway] { implicit! =>
-    val recentMessages = sentMessages
-      .getOrElse(server, Seq.empty[LocalDateTime])
-      .filter(_.isAfter(LocalDateTime.now().minus(last.toMillis, ChronoUnit.MILLIS)))
-    sentMessages.put(server, recentMessages)
-    recentMessages.size
+  def sumSentBytes(server: Remote[Server], last: Duration): Local[Int] on Gateway = on[Gateway] { implicit! =>
+    val recentMessages = sentBytes
+      .getOrElse(server, Seq.empty[BytesInfo])
+      .filter(_.time.isAfter(LocalDateTime.now().minus(last.toMillis, ChronoUnit.MILLIS)))
+    sentBytes.put(server, recentMessages)
+    recentMessages.map(_.bytes).sum
   }
 
-  def putSentMessage(server: Remote[Server]): Local[Unit] on Gateway = on[Gateway] { implicit! =>
-    val serverMessages = sentMessages.getOrElse(server, Seq.empty[LocalDateTime])
-    sentMessages.put(server, serverMessages.appended(LocalDateTime.now()))
+  def putSentBytes(server: Remote[Server], bytes: Int): Local[Unit] on Gateway = on[Gateway] { implicit! =>
+    val serverMessages = sentBytes.getOrElse(server, Seq.empty[BytesInfo])
+    sentBytes.put(server, serverMessages.appended(BytesInfo(LocalDateTime.now(), bytes)))
   }
 
   val db: Local[ConcurrentHashMap[String, ConcurrentLinkedQueue[String]]] on DB = on[DB] { implicit! =>
@@ -152,14 +163,14 @@ object SessionReference {
     db.getOrDefault(user, new ConcurrentLinkedQueue[String]()).asScala.toSeq
   }
 
-  def selectServer(session: Option[SessionReference]): Local[Future[Remote[Server]]] on Gateway = on[Gateway] { implicit ! =>
+  def selectServer(session: Option[SessionReference]): Local[Future[Remote[Server]]] on Gateway = on[Gateway] { implicit! =>
     session.map {
       case SessionReference(serverId, _) =>
         cachedServers.get(serverId).map(Future.successful).getOrElse(getUncachedServer(serverId))
     }.getOrElse {
       Future.successful(
         remote[Server].connected.map {
-          server => server -> (getSentMessages(server, last = 5.minutes): Int)
+          server => server -> (sumSentBytes(server, last = 5.minutes): Int)
         }.minBy(_._2)._1
       )
     }
@@ -175,17 +186,19 @@ object SessionReference {
     }
   }
 
-  def requestServer(request: Request, session: Option[SessionReference]): Future[(Response, SessionReference)] on Gateway = on[Gateway] { implicit! =>
-    selectServer(session).flatMap { server =>
-      putSentMessage(server)
-      remote(server).call(executeRequest(request, session)).asLocal
+  def requestServer(request: Request, session: Option[SessionReference]): Future[(Response, SessionReference)] on Gateway =
+    on[Gateway] { implicit! =>
+      selectServer(session).flatMap { server =>
+        putSentBytes(server, request.getBytes)
+        remote(server).call(executeRequest(request, session)).asLocal
+      }
     }
-  }
 
   def executeRequest(
     request: Request,
     session: Option[SessionReference]
   ): Future[(Response, SessionReference)] on Server = on[Server] { implicit! =>
+    println(s"EXECUTING REQUEST: $request")
     (session, request) match {
       case (None, InitRequest()) =>
         Future.successful(AwaitLoginResponse("Enter user and password:") -> newSessionReference(AwaitLogin()))
