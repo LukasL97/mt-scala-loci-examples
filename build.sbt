@@ -22,14 +22,12 @@ commands += Command.single("compileOnly") { (state, path) =>
   s"""set sources in Compile := (sources in Compile).value.filter(_.getPath.startsWith("$path"))""" :: "compile" :: state
 }
 
-resolvers += ("STG old bintray repo" at "http://www.st.informatik.tu-darmstadt.de/maven/").withAllowInsecureProtocol(true)
+lazy val lociLang = ProjectRef(uri("https://github.com/LukasL97/scala-loci.git#master"), "lociLangJVM")
+lazy val lociSerializerUpickle = ProjectRef(uri("https://github.com/LukasL97/scala-loci.git#master"), "lociSerializerUpickleJVM")
+lazy val lociCommunicatorTcpJVM = ProjectRef(uri("https://github.com/LukasL97/scala-loci.git#master"), "lociCommunicatorTcpJVM")
+lazy val lociLangTransmitterRescalaJVM = ProjectRef(uri("https://github.com/LukasL97/scala-loci.git#master"), "lociLangTransmitterRescalaJVM")
 
-val localLociVersion = "0.4.0-200-g9f23561-SNAPSHOT"
+lazy val root = project
+  .in(file("."))
+  .dependsOn(lociLang, lociSerializerUpickle, lociCommunicatorTcpJVM, lociLangTransmitterRescalaJVM)
 
-libraryDependencies ++= Seq(
-  "de.tuda.stg" %% "scala-loci-lang" % localLociVersion,
-  "de.tuda.stg" %% "scala-loci-serializer-upickle" % localLociVersion,
-  "de.tuda.stg" %% "scala-loci-communicator-tcp" % localLociVersion,
-  "de.tuda.stg" %% "scala-loci-lang-transmitter-rescala" % localLociVersion,
-  "de.tuda.stg" %% "scala-loci-serializer-jsoniter-scala" % localLociVersion
-)
